@@ -465,6 +465,8 @@ class Model {
         
         object["sharedWith"] = addedUsers
         
+        object["shouldPaid"] = addedUsers
+        
         object["activated"] = true
         
         
@@ -517,65 +519,62 @@ class Model {
         self.billObjects.addObject(object)
         //addedUsers.removeAll(keepCapacity: false)
     }
-    func editBill(#description:String, value:String, billId: String,cellId:Int) {
+    func editBill(#description:String, value:String, billId: String,cellId:Int) -> Bool{
         refreshNetworkStatus()
         var queryBill: PFQuery = PFQuery(className: "Bill")
         queryBill.fromLocalDatastore()
-        queryBill.getObjectInBackgroundWithId(billId) {
-            (billToEdit: PFObject?, error: NSError?) -> Void in
-            if error == nil && billToEdit != nil {
-                //println(billToEdit)
-                billToEdit!["whoCreated"] = self.userObject!["username"] as! String
-                
-                billToEdit!["description"] = description
-                billToEdit!["value"] = NSString(string: value).floatValue
-                
-                billToEdit!["sharedWith"] = self.addedUsers
-                if self.hasImg {
-                    //println("tem imagem pra salvar")
-                    var image : UIImage = self.imageToSave!
-                    var imageData = UIImagePNGRepresentation(image)
-                    var imageFile = PFFile(data:imageData)
-                    billToEdit!["img"] = imageFile
-                    
-                    var imageTBN : UIImage = self.imageToSave!
-                    let widthTBN: CGFloat = 50.0
-                    let heightTBN: CGFloat = 50.0
-                    var sizeTBN = CGSizeMake(widthTBN, heightTBN)
-                    let scaleTBN: CGFloat = 1.0
-                    UIGraphicsBeginImageContextWithOptions(sizeTBN, false, scaleTBN) //---
-                    imageTBN.drawInRect(CGRect(origin: CGPointZero, size: sizeTBN))
-                    let scaledImageTBN = UIGraphicsGetImageFromCurrentImageContext()
-                    UIGraphicsEndImageContext()
-                    var imageTBNData = UIImagePNGRepresentation(scaledImageTBN)
-                    var imageTBNFile = PFFile(data:imageTBNData)
-                    billToEdit!["imgTBN"] = imageTBNFile
-                    
-                    self.resetImages()
-                    
-                    
-                }
-                self.billObjects.removeObjectAtIndex(cellId)
-                self.billObjects.insertObject(billToEdit!, atIndex: cellId)
-                
-                //self.billObjects.addObject(billToEdit!)
-                self.calculateDebts(true)
-                billToEdit!.saveEventually()  { (success,error) -> Void in
-                    if (error == nil){
-                        //println("EDITOU")
-                        
-                    }
-                    else {
-                        //println("NAO EDITOU")
-                    }
-                }
-
-                
-                self.addedUsers.removeAll(keepCapacity: false)
-            } else {
-                //println("NAO ACHOU BILL PRA EDITAR")
+        var billToEdit: PFObject! = queryBill.getObjectWithId(billId)
+        
+        if billToEdit != nil {
+            //println(billToEdit)
+            billToEdit!["whoCreated"] = self.userObject!["username"] as! String
+            
+            billToEdit!["description"] = description
+            billToEdit!["value"] = NSString(string: value).floatValue
+            
+            var sharedWith : [String] = billToEdit!["sharedWith"] as! [String]
+            var shouldPaid : [String] = billToEdit!["shouldPaid"] as! [String]
+            if sharedWith.count != shouldPaid.count {
+                return false
             }
+            billToEdit!["sharedWith"] = self.addedUsers
+            billToEdit!["shouldPaid"] = self.addedUsers
+            if self.hasImg {
+                //println("tem imagem pra salvar")
+                var image : UIImage = self.imageToSave!
+                var imageData = UIImagePNGRepresentation(image)
+                var imageFile = PFFile(data:imageData)
+                billToEdit!["img"] = imageFile
+                
+                var imageTBN : UIImage = self.imageToSave!
+                let widthTBN: CGFloat = 50.0
+                let heightTBN: CGFloat = 50.0
+                var sizeTBN = CGSizeMake(widthTBN, heightTBN)
+                let scaleTBN: CGFloat = 1.0
+                UIGraphicsBeginImageContextWithOptions(sizeTBN, false, scaleTBN) //---
+                imageTBN.drawInRect(CGRect(origin: CGPointZero, size: sizeTBN))
+                let scaledImageTBN = UIGraphicsGetImageFromCurrentImageContext()
+                UIGraphicsEndImageContext()
+                var imageTBNData = UIImagePNGRepresentation(scaledImageTBN)
+                var imageTBNFile = PFFile(data:imageTBNData)
+                billToEdit!["imgTBN"] = imageTBNFile
+                
+                self.resetImages()
+                
+                
+            }
+            self.billObjects.removeObjectAtIndex(cellId)
+            self.billObjects.insertObject(billToEdit!, atIndex: cellId)
+            
+            //self.billObjects.addObject(billToEdit!)
+            self.calculateDebts(true)
+            billToEdit!.saveEventually()
+        } else {
+             println("nao achou bill to edit")
+            return false
+           
         }
+        return true
         
     }
     func addAddedUsers(name: String){
@@ -725,11 +724,17 @@ class Model {
             
             var paidBy : String = bill["paidBy"] as! String
             var sharedWith : [String] = bill["sharedWith"] as! [String]
+            var shouldPaid : [String]?
+            shouldPaid = bill["shouldPaid"] as? [String]
             var value : Float = bill["value"] as! Float
+            if shouldPaid != nil{
+                bill["activated"] = false
+                bill.saveEventually()
+            }
             ////println(paidBy + sharedWith[0])
-            for sharedUser in sharedWith {
-                if sharedUser != paidBy {
-                    var (dbId,direction) = getDebtId(paidBy, sharedUser: sharedUser, groupFriends: groupFriends)
+            for userThatShouldPay in shouldPaid! {
+                if userThatShouldPay != paidBy {
+                    var (dbId,direction) = getDebtId(paidBy, sharedUser: userThatShouldPay, groupFriends: groupFriends)
                     localDebtStorage[dbId] = localDebtStorage[dbId]! + value*Float(direction)/Float(sharedWith.count)
                 }
             }
@@ -772,7 +777,55 @@ class Model {
                 }
             }
         }
-        //println(filteredBills)
+        //println(filtere
+    }
+    func findIndex(names:[String],name:String) -> Int {
+        var index = -1
+        for i in 0..<names.count {
+            if names[i] == name {
+                index = i
+            }
+        }
+        return index
+    }
+    func settleUp(user1:String,user2:String) {
+        println(user1 + " " + user2)
+        println(self.filteredBills)
+        for bill in self.filteredBills {
+            var shouldPaid : [String] = bill["shouldPaid"] as! [String]
+            if user1 == bill["paidBy"] as! String {
+                println(findIndex(shouldPaid, name: user1))
+                if findIndex(shouldPaid, name: user1) >= 0 {
+                    shouldPaid.removeAtIndex(findIndex(shouldPaid, name: user1))
+                }
+            }
+            if user2 == bill["paidBy"] as! String {
+                println(findIndex(shouldPaid, name: user2))
+                if findIndex(shouldPaid, name: user2) >= 0 {
+                    shouldPaid.removeAtIndex(findIndex(shouldPaid, name: user2))
+                }
+            }
+           
+            for user in shouldPaid {
+                if user1 == user {
+                    println(findIndex(shouldPaid, name: user1))
+                    if findIndex(shouldPaid, name: user1) >= 0 {
+                        shouldPaid.removeAtIndex(findIndex(shouldPaid, name: user1))
+                    }
+                }
+                if user2 == user {
+                    println(findIndex(shouldPaid, name: user2))
+                    if findIndex(shouldPaid, name: user2) >= 0 {
+                        shouldPaid.removeAtIndex(findIndex(shouldPaid, name: user2))
+                    }
+                }
+            }
+            //bill["shouldPaid"] = shouldPaid
+            var PFBill : PFObject = bill as! PFObject
+            PFBill["shouldPaid"] = shouldPaid
+            PFBill.saveEventually()
+        }
+        //refreshData()
     }
     func getPersonalRelations(){
         self.personalRelations.removeAll(keepCapacity: false)
@@ -930,76 +983,6 @@ class Model {
                 refreshDebts()
             }
         }
-        
-        
-        
-        
-        /*refreshNetworkStatus()
-        if self.groupObject != nil{
-            
-            var userGroupName : String = self.groupObject!["groupName"] as! String
-            var groupFriends : [String] = self.groupFriendsString
-            //println("DDEBT OBJECTS : \(self.debtObjects.count)")
-            //println(self.getNumOfDebts(groupFriends.count))
-            var queryDebt : PFQuery = PFQuery(className: "Debts")
-            //queryDebt.fromLocalDatastore()
-            queryDebt.whereKey("groupName", equalTo: userGroupName)
-
-            if background {
-                queryDebt.findObjectsInBackgroundWithBlock{(objects,error) -> Void in
-                if (error == nil){
-                    var temp: NSArray = objects! as NSArray
-                    //println("NUMERO DE DEBTS NO PARSE: \(temp.count)")
-                    if temp.count != self.getNumOfDebts(groupFriends.count) {
-                        var queryGroup: PFQuery = PFQuery(className: "Group")
-                        queryGroup.whereKey("groupName", equalTo: userGroupName)
-                        var NSGroup : NSArray = queryGroup.findObjects()! as NSArray
-                        var refreshedGroup : PFObject = NSGroup.firstObject as! PFObject
-                        var refreshedGroupFriends : [String] = refreshedGroup["groupFriends"] as! [String]
-                        self.groupFriendsString = refreshedGroupFriends
-                        if temp.count != self.getNumOfDebts(refreshedGroupFriends.count){
-                            //println("\t\t\t\t\t#############CREATE RELATIONS")
-                            self.createDebtRelations(refreshedGroupFriends, groupName: userGroupName, create: true)
-                        } else {
-                            self.createDebtRelations(refreshedGroupFriends, groupName: userGroupName, create: false)
-                        }
-                    }
-                    //println("GET RELATIONS")
-                    self.refreshDebts(groupFriends,groupName:userGroupName,backGround:background)
-                    
-                } else {
-                    //println("FUDEU NO REFRESH EM BACKGROUND")
-                }
-
-                }
-            } else {
-                var temp: NSArray = queryDebt.findObjects()! as NSArray
-                //println("NUMERO DE DEBTS NO PARSE: \(temp.count)")
-                if temp.count != getNumOfDebts(groupFriends.count) {
-                    
-                    var queryGroup: PFQuery = PFQuery(className: "Group")
-                    queryGroup.fromLocalDatastore()
-                    queryGroup.whereKey("groupName", equalTo: userGroupName)
-                    var NSGroup : NSArray = queryGroup.findObjects()! as NSArray
-                    var refreshedGroup : PFObject = NSGroup.firstObject as! PFObject
-                    //println("\t\t\t\t\t#############CREATE RELATIONS")
-                    var refreshedGroupFriends : [String] = refreshedGroup["groupFriends"] as! [String]
-                    self.groupFriendsString = refreshedGroupFriends
-                    if temp.count < self.getNumOfDebts(refreshedGroupFriends.count){
-                        //println("\t\t\t\t\t#############CREATE RELATIONS DELETEI USER")
-                        self.createDebtRelations(refreshedGroupFriends, groupName: userGroupName, create: true)
-                    } else {
-                        self.createDebtRelations(refreshedGroupFriends, groupName: userGroupName, create: false)
-                    }
-                }
-                //println("GET RELATIONS")
-                refreshDebts(groupFriends,groupName:userGroupName,backGround:background)
-            }
-            
-            
-            //generateDebtStrings()
-            //println("FINISH TO CALCULATE \(self.relations)")
-        }*/
     }
     func isConnectedToNetwork() -> Bool {
         

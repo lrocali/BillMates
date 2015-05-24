@@ -132,8 +132,15 @@ class AddBillViewController: UIViewController, UITableViewDelegate, UITableViewD
                 self.navigationController?.popToRootViewControllerAnimated(true)
             } else if billState == 2 {
                 println("1")
-                self.model.editBill(description: txtDescription.text, value: txtValue.text,billId: billId!,cellId:billCellIndex)
-                self.navigationController?.popToRootViewControllerAnimated(true)
+                if self.model.editBill(description: txtDescription.text, value: txtValue.text,billId: billId!,cellId:billCellIndex) {
+                    self.navigationController?.popToRootViewControllerAnimated(true)
+                } else {
+                    let alert = UIAlertView()
+                    alert.title = "You cannot edit"
+                    alert.message = "Some users thtat share the bill alread settled up"
+                    alert.addButtonWithTitle("Ok")
+                    alert.show()
+                }
             } else {    //view tahata can edit state 1
                 println("2")
                 billState = 2

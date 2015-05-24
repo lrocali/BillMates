@@ -21,6 +21,8 @@ class BalanceDetailViewController: UIViewController, UITableViewDelegate, UITabl
     @IBOutlet weak var btnSettleUp: UIButton!
     @IBAction func btnSettleUp(sender: UIButton) {
         btnSettleUp.backgroundColor = cellColor4
+        model.settleUp(user1!, user2: user2!)
+        
     }
     @IBAction func btnSettledDown(sender: UIButton) {
         btnSettleUp.backgroundColor = cellColor3

@@ -13,7 +13,7 @@ import Parse
 import ParseUI
 import SystemConfiguration
 
-//Branch from cirola
+// Essa eh a model
 class Model {
     
     
